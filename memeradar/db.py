@@ -25,7 +25,13 @@ CREATE TABLE IF NOT EXISTS positions (
     closed_at REAL,
     exit_price REAL,
     proceeds_usd REAL,
-    exit_reason TEXT
+    exit_reason TEXT,
+    entry_info TEXT
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
 );
 
 CREATE TABLE IF NOT EXISTS alerts (
@@ -42,4 +48,9 @@ def connect(path):
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # Older databases lack entry_info. Add the column so they keep working.
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(positions)")}
+    if "entry_info" not in cols:
+        conn.execute("ALTER TABLE positions ADD COLUMN entry_info TEXT")
+        conn.commit()
     return conn

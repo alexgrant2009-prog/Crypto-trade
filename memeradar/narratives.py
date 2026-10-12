@@ -79,8 +79,29 @@ def hot_terms(conn, cfg, min_recent=3, min_heat=3.0, limit=15, now=None):
     return sorted(scored, key=lambda x: x[2], reverse=True)[:limit]
 
 
+def mark_started(conn, now=None):
+    """Remember when this database first started collecting. Kept across restarts."""
+    conn.execute("INSERT OR IGNORE INTO meta(key, value) VALUES ('started_at', ?)", (str(now or time.time()),))
+    conn.commit()
+
+
+def history_ready(conn, cfg, now=None):
+    """Heat needs a full baseline. Before that, every repeated word looks hot."""
+    now = now or time.time()
+    row = conn.execute("SELECT value FROM meta WHERE key='started_at'").fetchone()
+    if not row:
+        return False
+    needed = cfg.narrative_window_minutes * 60 + cfg.narrative_baseline_hours * 3600
+    return now - float(row[0]) >= needed
+
+
 def token_narrative_heat(conn, snap, description, cfg, now=None, exclude_id=""):
-    """Best heat among the token's own name, symbol, and description terms."""
+    """Best heat among the token's own name, symbol, and description terms.
+
+    Returns (None, 1.0), meaning no narrative boost, until history_ready.
+    """
+    if not history_ready(conn, cfg, now):
+        return None, 1.0
     text = f"{snap['name']} {snap['symbol']} ${snap['symbol']} {description or ''}"
     best_term, best = None, 1.0
     for term in extract_terms(text, cfg.stopwords):

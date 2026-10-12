@@ -3,6 +3,7 @@
 Paper results still flatter you. Real snipes fill worse than a 60 second poll suggests,
 and you can't always sell into a crash. Treat a paper profit as a minimum bar, not proof.
 """
+import json
 import time
 
 
@@ -25,7 +26,7 @@ def has_traded(conn, mint):
     return conn.execute("SELECT 1 FROM positions WHERE mint=?", (mint,)).fetchone() is not None
 
 
-def try_open(conn, snap, score, cfg, now=None):
+def try_open(conn, snap, score, cfg, now=None, info=None):
     """Open a position if rules allow. Returns a reason string if skipped, else None."""
     now = now or time.time()
     if has_traded(conn, snap["mint"]):
@@ -38,9 +39,10 @@ def try_open(conn, snap, score, cfg, now=None):
     entry = snap["price_usd"] * (1 + cfg.slippage_pct_per_side / 100)
     tokens = size * (1 - cfg.fee_pct_per_side / 100) / entry
     conn.execute(
-        "INSERT INTO positions(mint, symbol, url, score, opened_at, entry_price, entry_liquidity, size_usd, tokens)"
-        " VALUES (?,?,?,?,?,?,?,?,?)",
-        (snap["mint"], snap["symbol"], snap["url"], score, now, entry, snap["liquidity_usd"], size, tokens),
+        "INSERT INTO positions(mint, symbol, url, score, opened_at, entry_price, entry_liquidity, size_usd, tokens,"
+        " entry_info) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (snap["mint"], snap["symbol"], snap["url"], score, now, entry, snap["liquidity_usd"], size, tokens,
+         json.dumps(info or {})),
     )
     conn.commit()
     return None

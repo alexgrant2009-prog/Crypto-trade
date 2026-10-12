@@ -52,7 +52,9 @@ class FakeSources:
 
 @pytest.fixture
 def conn():
-    return db.connect(":memory:")
+    c = db.connect(":memory:")
+    narratives.mark_started(c, NOW - 7 * 3600)  # narrative history already warm
+    return c
 
 
 @pytest.fixture
@@ -93,6 +95,44 @@ def test_narrative_velocity_beats_volume(conn, cfg):
     assert zilla > 3 > steady
 
 
+def test_no_narrative_boost_during_warm_up(cfg):
+    fresh = db.connect(":memory:")
+    narratives.mark_started(fresh, NOW - 3600)
+    for k in range(5):
+        narratives.record(fresh, "x", f"z{k}", "zilla", NOW - 60 - k, cfg.stopwords)
+    snap = {"name": "Zilla", "symbol": "ZIL"}
+    assert narratives.token_narrative_heat(fresh, snap, "zilla", cfg, NOW) == (None, 1.0)
+    # Restarting the bot keeps the original start time.
+    narratives.mark_started(fresh, NOW)
+    assert narratives.history_ready(fresh, cfg, NOW + 6 * 3600)
+
+
+def test_old_database_gets_upgraded(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute("CREATE TABLE positions (id INTEGER PRIMARY KEY, mint TEXT, symbol TEXT, url TEXT, score REAL,"
+                " opened_at REAL, entry_price REAL, entry_liquidity REAL, size_usd REAL, tokens REAL,"
+                " closed_at REAL, exit_price REAL, proceeds_usd REAL, exit_reason TEXT)")
+    old.commit()
+    old.close()
+    cols = {r[1] for r in db.connect(str(path)).execute("PRAGMA table_info(positions)")}
+    assert "entry_info" in cols
+
+
+def test_export_writes_entry_inputs(conn, cfg, tmp_path):
+    import csv
+    from memeradar.dexscreener import snapshot
+    from memeradar.main import export_trades
+    run_cycle(conn, cfg, FakeSources([make_pair()], posts=hot_posts("zilla")), now=NOW)
+    paper.update_positions(conn, {MINT: snapshot(make_pair(price="0.003"), NOW)}, cfg, NOW + 600)
+    out = tmp_path / "t.csv"
+    assert export_trades(conn, str(out)) == 1
+    row = next(csv.DictReader(open(out, encoding="utf-8")))
+    assert row["symbol"] == "CATZ" and row["exit_reason"] == "take profit"
+    assert row["narrative_term"] == "zilla" and float(row["liquidity_usd"]) == 50_000
+
+
 def test_own_description_does_not_create_heat(conn, cfg):
     narratives.record(conn, "dexscreener", "dex:A", "zilla", NOW, cfg.stopwords)
     snap = {"name": "Zilla", "symbol": "ZIL"}
@@ -127,6 +167,7 @@ def test_take_profit_and_rug_exits(conn, cfg):
     assert closed[0][1] == "take profit" and closed[0][2] > 100
 
     conn2 = db.connect(":memory:")
+    narratives.mark_started(conn2, NOW - 7 * 3600)
     run_cycle(conn2, cfg, FakeSources([make_pair()], posts=hot_posts("zilla")), now=NOW)
     closed = paper.update_positions(conn2, {MINT: snapshot(make_pair(liq=1_000), NOW)}, cfg, NOW + 600)
     assert closed[0][1] == "rug" and paper.stats(conn2, cfg)["realized_pnl_usd"] == -20.0

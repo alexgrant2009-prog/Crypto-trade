@@ -37,6 +37,7 @@ pip install -r requirements.txt
 python -m memeradar run          # runs forever, Ctrl+C to stop
 python -m memeradar run -v       # also prints why each token got skipped
 python -m memeradar report       # paper trading results and hot narratives
+python -m memeradar export       # writes every closed trade and its inputs to trades.csv
 python -m pytest                 # run the tests
 ```
 
@@ -69,6 +70,9 @@ Run for 3 to 4 weeks and collect at least 50 closed trades. Then ask:
 If the answer to the first two is no, do not move to live trading. Adjust filters or stop.
 
 ## Known limits
+
+- Narrative scoring stays off for the first 7 hours of a fresh database. Without a
+  baseline, every repeated word looks hot.
 
 - Paper fills beat real fills. Real snipers buy in the first seconds. This bot sees prices
   up to 60 seconds late and assumes you always get out. Treat paper profit as the

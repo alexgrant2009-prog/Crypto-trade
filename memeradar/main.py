@@ -1,5 +1,6 @@
 """Main loop: scan, screen, score, alert, paper trade. Run with: python -m memeradar run"""
 import argparse
+import csv
 import json
 import time
 
@@ -28,6 +29,7 @@ class LiveSources:
 
 def run_cycle(conn, cfg, src, now=None, verbose=False):
     now = now or time.time()
+    narratives.mark_started(conn, now)
 
     # 1. Collect narrative text from free sources.
     for sub in cfg.reddit_subreddits:
@@ -82,7 +84,11 @@ def run_cycle(conn, cfg, src, now=None, verbose=False):
                 print(f"REJECT {snap['symbol']} (score {sc}): {'; '.join(risks)}")
             continue
 
-        skipped = paper.try_open(conn, snap, sc, cfg, now)
+        # Save every input behind the decision, so later you learn which ones predict winners.
+        info = {k: snap[k] for k in ("liquidity_usd", "volume_h1", "volume_m5", "buys_h1", "sells_h1",
+                                     "buys_m5", "sells_m5", "price_change_h1", "market_cap", "age_hours")}
+        info.update(narrative_term=term, narrative_heat=round(heat, 2))
+        skipped = paper.try_open(conn, snap, sc, cfg, now, info)
         narrative = f"hot term '{term}' x{heat:.1f}" if term else "no hot narrative"
         alerts.send(
             f"[SIGNAL] {snap['symbol']} score {sc} | mcap ${snap['market_cap']:,.0f} | "
@@ -103,9 +109,34 @@ def print_report(conn, cfg):
         print(f"  {r['symbol']:<10} {pnl:+7.1f}%  {r['exit_reason']}")
 
 
+EXPORT_FIELDS = ["symbol", "mint", "score", "opened_at", "closed_at", "hold_minutes", "pnl_pct", "exit_reason",
+                 "liquidity_usd", "volume_h1", "volume_m5", "buys_h1", "sells_h1", "buys_m5", "sells_m5",
+                 "price_change_h1", "market_cap", "age_hours", "narrative_term", "narrative_heat", "url"]
+
+
+def export_trades(conn, path="trades.csv"):
+    """Write every closed trade with its entry inputs to a CSV file you open in Excel."""
+    rows = conn.execute("SELECT * FROM positions WHERE closed_at IS NOT NULL ORDER BY opened_at").fetchall()
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=EXPORT_FIELDS, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            info = json.loads(r["entry_info"] or "{}")
+            w.writerow({
+                **info,
+                "symbol": r["symbol"], "mint": r["mint"], "score": r["score"], "url": r["url"],
+                "opened_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(r["opened_at"])),
+                "closed_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(r["closed_at"])),
+                "hold_minutes": round((r["closed_at"] - r["opened_at"]) / 60, 1),
+                "pnl_pct": round((r["proceeds_usd"] / r["size_usd"] - 1) * 100, 1),
+                "exit_reason": r["exit_reason"],
+            })
+    return len(rows)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Solana meme coin radar with paper trading")
-    parser.add_argument("command", choices=["run", "once", "report"])
+    parser.add_argument("command", choices=["run", "once", "report", "export"])
     parser.add_argument("-v", "--verbose", action="store_true", help="print why tokens get skipped")
     args = parser.parse_args()
 
@@ -113,6 +144,13 @@ def main():
     conn = db.connect(cfg.db_path)
     if args.command == "report":
         print_report(conn, cfg)
+        if not narratives.history_ready(conn, cfg):
+            print(f"\nNarrative scoring warms up for the first {cfg.narrative_baseline_hours + 1} hours. "
+                  "No narrative boost until then.")
+        return
+    if args.command == "export":
+        n = export_trades(conn)
+        print(f"Wrote {n} closed trades to trades.csv")
         return
 
     src = LiveSources(cfg)
