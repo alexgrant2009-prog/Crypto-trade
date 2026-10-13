@@ -22,7 +22,8 @@ class Config:
     min_entry_score: float = 60.0
 
     # Paper trading. Fees and slippage are deliberately pessimistic.
-    starting_balance_usd: float = 200.0
+    # Paper money only. Large enough to collect 50+ trades even on a losing streak.
+    starting_balance_usd: float = 1000.0
     position_size_usd: float = 20.0
     max_open_positions: int = 5
     fee_pct_per_side: float = 1.0

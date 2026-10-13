@@ -16,7 +16,7 @@ No real trades. No wallet. No private keys. Free data only.
 5. Scores survivors 0 to 100 (momentum 40, freshness 15, activity 15, narrative 30).
 6. Runs a RugCheck safety check: mint authority, freeze authority, holder
    concentration, insiders, locked liquidity.
-7. Opens a $20 paper trade on tokens scoring 60+ that pass every safety check.
+7. Opens a $20 paper trade (from a $1,000 paper balance) on tokens scoring 60+ that pass every safety check.
 8. Closes paper trades at +100% profit, -30% loss, 24 hours, or liquidity pulled.
 
 ## Setup (one time)
