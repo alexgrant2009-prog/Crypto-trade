@@ -187,3 +187,8 @@ def test_same_token_alerted_once(conn, cfg, capsys):
     run_cycle(conn, cfg, src, now=NOW)
     run_cycle(conn, cfg, src, now=NOW + 60)
     assert capsys.readouterr().out.count("[SIGNAL]") == 1
+
+
+def test_everyday_words_are_not_narratives(cfg):
+    terms = narratives.extract_terms("them every across market $ZILLA cat dogs", cfg.stopwords)
+    assert terms == {"$zilla", "zilla", "cat", "dogs"}

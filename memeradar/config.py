@@ -40,8 +40,21 @@ class Config:
 
     db_path: str = "memeradar.db"
     user_agent: str = "memeradar/0.1 (personal research bot)"
-    stopwords: frozenset = field(default_factory=lambda: frozenset(
-        "the and for you this that with are was from have will your just our out not but all "
-        "its it's get new now can has one who what when how coin token sol solana crypto meme "
-        "memecoin pump fun launch launched community first best more about into they their".split()
-    ))
+    stopwords: frozenset = field(default_factory=lambda: frozenset(COMMON_WORDS))
+
+
+# Everyday English and generic crypto words. These spread everywhere, so they never signal a narrative.
+COMMON_WORDS = """
+the and for you this that with are was from have will your just our out not but all its it's get new now
+can has one who what when how why where which while them they their then than there these those this
+been being were would could should about into over under after before again every each across along
+also any some more most much many very only own same other another such both few here off once still
+even ever never always back down make made take come came goes going went know like want need look
+see seen said says time today week year day days night first last next best good great big small
+high low top real true free full live only right left long way well yes yet too own lol gm gn wagmi
+ngmi fren frens bro guys everyone anyone someone people world life love team official project
+community holders holder buy buying sell selling hold holding moon pump pumps dump chart price
+market cap mcap volume liquidity launch launched launching fair stealth presale airdrop dev devs
+ca contract token tokens coin coins meme memes memecoin memecoins crypto sol solana pumpfun fun
+raydium jupiter dexscreener telegram twitter discord website join follow link links
+""".split()

@@ -155,14 +155,17 @@ def main():
 
     src = LiveSources(cfg)
     print(f"Meme Radar started. Paper balance ${paper.cash(conn, cfg):.2f}. Ctrl+C to stop.")
-    while True:
-        try:
-            run_cycle(conn, cfg, src, verbose=args.verbose)
-        except Exception as exc:  # keep the bot alive through bad data
-            print(f"[cycle error] {exc!r}", flush=True)
-        if args.command == "once":
-            break
-        time.sleep(cfg.poll_seconds)
+    try:
+        while True:
+            try:
+                run_cycle(conn, cfg, src, verbose=args.verbose)
+            except Exception as exc:  # keep the bot alive through bad data
+                print(f"[cycle error] {exc!r}", flush=True)
+            if args.command == "once":
+                break
+            time.sleep(cfg.poll_seconds)
+    except KeyboardInterrupt:
+        print("\nMeme Radar stopped. Your results are saved.")
 
 
 if __name__ == "__main__":
